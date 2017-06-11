@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="dist/LifeEngine.js"></script>
+    <script src="test.config.js"></script>
+</head>
+<body>
+    <h1>Testing LifeEngine </h1>
+    <script>
+        var le = new LifeEngine(config);
+        le.addAuthChangeListener(function() {
+            console.log("AUTH CHANGED", arguments);
+        });
+
+        le.checkOAuthReturn();
+
+        if (!le.getAuthToken()) {
+            console.log("LE DOES NOT HAVE AUTH TOKEN, ASKING TO AUTH");
+            le.authenticate();
+        } else {
+            console.log("Fetching messages");
+            le.messages.get({}).then(function(data) {
+                console.log("messages", data);
+            });
+        }
+    </script>
+</body>
+</html>

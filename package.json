@@ -1,0 +1,25 @@
+{
+  "name": "life-engine-js",
+  "version": "1.0.0",
+  "description": "A JavaScript wrapper around Life Engine's APIs",
+  "main": "dist/lifeengine.min.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "gulp release",
+    "dev": "gulp"
+  },
+  "devDependencies": {
+    "@types/bluebird": "^3.5.4",
+    "bluebird": "^3.5.0",
+    "gulp": "^3.9.1",
+    "ts-loader": "^2.0.3",
+    "tslint": "^5.2.0",
+    "tslint-loader": "^3.5.3",
+    "typescript": "^2.3.2",
+    "webpack": "^1.15.0",
+    "yargs": "^8.0.1"
+  },
+  "dependencies": {
+    "@zalando/oauth2-client-js": "0.0.17"
+  }
+}
