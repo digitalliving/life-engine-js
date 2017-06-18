@@ -5,24 +5,188 @@
     <script src="test.config.js"></script>
 </head>
 <body>
-    <h1>Testing LifeEngine </h1>
-    <script>
-        var le = new LifeEngine(config);
-        le.addAuthChangeListener(function() {
-            console.log("AUTH CHANGED", arguments);
+<h1>Testing LifeEngine </h1>
+<script>
+    var le = new LifeEngine(config);
+    var entities = {};
+
+    //
+    // A Bunch of functions for testing things
+    //
+
+    function findEntity(filter) {
+        var match = undefined;
+        entities.forEach(function (e) {
+            if (match) {
+                return;
+            }
+
+            var ok = true;
+            for (var key in filter) {
+                if (e[key] !== filter[key]) {
+                    ok = false;
+                }
+            }
+
+            if (ok) {
+                match = e;
+            }
         });
 
-        le.checkOAuthReturn();
+        return match;
+    }
 
-        if (!le.getAuthToken()) {
-            console.log("LE DOES NOT HAVE AUTH TOKEN, ASKING TO AUTH");
-            le.authenticate();
-        } else {
-            console.log("Fetching messages");
-            le.messages.get({}).then(function(data) {
-                console.log("messages", data);
+    function toAPIDate(ts) {
+        return new Date(ts).toISOString().substr(0, 19).replace("T", " ");
+    }
+
+    function testMessages() {
+        console.log("Fetching messages");
+        le.messages.get({}).then(function (data) {
+            console.log("GOT MESSAGES", data);
+            var app = findEntity({"class": "App"});
+            var person = findEntity({"class": "Person"});
+            var msg = {
+                "toDLId": app.DLId,
+                "subject": "Testing from test.html " + Date.now(),
+                "content": "❁ THIS IS A MESSAGE ❁ 這是一個消息 ❁",
+                "privacy": "public"
+            };
+
+            le.messages.post(msg).then(function (res) {
+                console.log("CREATED MESSAGE", res);
+                var message = res.data.data;
+                le.messageRead.post({
+                    "DLId": message.DLId,
+                    "readBy": person.DLId
+                }).then(function (res) {
+                    console.log("MARKED MESSAGE AS READ", res);
+                });
+
+                le.messageComments.post({
+                    "DLId": message.DLId,
+                    "fromDLId": person.DLId,
+                    "content": "Comment " + Math.random()
+                }).then(function (res) {
+                    console.log("COMMENTED ON MESSAGE", res);
+                    var message = res.data.data;
+                    var comment = message.comments.data[0];
+
+                    msg.DLId = message.DLId;
+                    msg.subject += Date.now();
+
+                    le.messages.put(msg).then(function (res) {
+                        console.log("UPDATED MESSAGE", res);
+                        le.messages.get({
+                            "include": "toEntity,fromEntity"
+                        }).then(function (res) {
+                            console.log("RE-FETCHED MESSAGE LIST", res);
+                            le.messageComments.delete({
+                                "DLId": message.DLId,
+                                "commentId": comment.id
+                            }).then(function (res) {
+                                console.log("DELETED COMMENT", res);
+                                var message = res.data.data;
+                                le.messages.delete({
+                                    "DLId": message.DLId
+                                }).then(function (res) {
+                                    console.log("DELETED MESSAGE", res);
+                                })
+                            })
+                        });
+                    });
+                })
+            })
+        });
+    }
+
+    function testCalendar() {
+        le.taskInbox.get().then(function (res) {
+            console.log("CALENDAR TASK INBOX", res);
+        });
+
+        le.taskList.get().then(function (res) {
+            console.log("CALENDAR TASK LIST", res);
+            var list = res.data.data;
+            list.forEach(function (task) {
+                le.calendar.get({"DLId": task.DLId}).then(function (res) {
+                    console.log("CALENDAR TASK GET", res);
+                    task.title = "DELETING";
+                    delete task["relations"];
+                    le.calendar.put(task).then(function (res) {
+                        console.log("CALENDAR TASK UPDATED", res);
+                        le.calendar.delete({"DLId": task.DLId}).then(function (res) {
+                            console.log("DELETED TASK " + task.DLId, res);
+                        });
+                    });
+                });
             });
-        }
-    </script>
+        }).then(function () {
+            var person = findEntity({"class": "Person"});
+            le.calendar.post({
+                "toDLId": person.DLId,
+                "type": "event",
+                "startDate": toAPIDate((Date.now() + (7 * 24 * 60 * 60 * 1000))),
+                "endDate": toAPIDate((Date.now() + (7 * 24 * 60 * 60 * 1000) + (60 * 60 * 1000))),
+                "privacy": "public",
+                "title": "Spending an hour doing nothing of any importance",
+                "content": "Nunc consequat, nunc in elementum rutrum, turpis elit malesuada orci, et porta lorem sapien vel mi. Sed eleifend leo sed libero ornare, quis pharetra magna laoreet. Cras hendrerit nibh ante, pulvinar posuere velit venenatis vitae. Maecenas blandit ex arcu, a mollis ante blandit eget. Vestibulum vulputate enim odio, nec scelerisque neque mattis non. Morbi a pharetra ipsum. In ornare ornare ligula et dictum.",
+                "repeats": "none"
+            }).then(function (res) {
+                console.log("CREATED CALENDAR TASK", res);
+                var task = res.data.data;
+
+                le.data.post({
+                    "DLId": task.DLId,
+                    "context": "I.r.smart",
+                    "key": "foo",
+                    "value": "barf",
+                    "type": "task"
+                }).then(function (res) {
+                    console.log("SAVED KEY-VALUE DATA", res);
+                });
+
+                le.taskComments.post({
+                    "DLId": task.DLId,
+                    "fromDLId": person.DLId,
+                    "content": "Hola cómo estás?"
+                }).then(function (res) {
+                    console.log("CREATED TASK COMMENT", res);
+                });
+            });
+        });
+    }
+
+    //
+    // The logic for firing up the tests
+    //
+
+    le.addAuthChangeListener(function () {
+        console.log("AUTH CHANGED", arguments);
+    });
+
+    if (config.token) {
+        le.setAuthToken(config.token);
+    }
+
+    if (!le.getAuthToken()) {
+        console.log("LE DOES NOT HAVE AUTH TOKEN, ASKING TO AUTH");
+        le.authenticate();
+    } else {
+        le.entities.get({include: "keyValueData"}).then(function (result) {
+            console.log("GOT ENTITIES", result);
+            entities = result.data.data;
+
+            entities.forEach(function (e) {
+                le.entity.get({"DLId": e.DLId}).then(function (res) {
+                    console.log("ENTITY GET " + e.DLId, res);
+                });
+            });
+
+            testMessages();
+            testCalendar();
+        });
+    }
+</script>
 </body>
 </html>

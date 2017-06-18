@@ -1,17 +1,6 @@
 # Life Engine JavaScript SDK
 
-
-
-## Temporary workarounds for problems
-
-Until Zalando fixes their NPM repository, you need to download the `.d.ts`
-file for the `oauth2-client-js` library and copy it to
-`node_modules/@zalando/oauth2-client-js/index.d.ts`.
-
-Download the file from https://github.com/zalando/oauth2-client-js/blob/master/index.d.ts
-
-
-# Development
+## Development
 
 You will need:
 
@@ -22,3 +11,15 @@ You will need:
 Run `gulp` to build the library and watch for changes.
 
 
+## Testing
+
+Copy `test.config.example.js` to `test.config.js`, edit to fit your environment
+and open up `test.html` in a browser.
+
+
+## Releases
+
+(This doesn't happen often so it's easy to forget)
+
+1. Update new version number in package.json
+2. Commit a new tag pointing to the correct revision

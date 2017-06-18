@@ -1,7 +1,6 @@
 import Promise = require('bluebird');
-import OAuth = require('@zalando/oauth2-client-js');
 
-const DEBUG = true;
+const DEBUG = false;
 
 function convertParams(params: any) {
     let paramString = "";
@@ -27,8 +26,21 @@ function log(...args: any[]) {
     }
 }
 
+function replaceTokens(str: string, data: any) {
+    for (let key in data) {
+        let r = new RegExp('{' + key + '}', 'g');
+        str = str.replace(r, data[key]);
+    }
+
+    return str;
+}
+
 interface AuthListener {
     (authenticated: boolean): void;
+}
+
+interface Methods {
+    [key: string]: string;
 }
 
 class Config {
@@ -37,21 +49,47 @@ class Config {
 }
 
 class ApiWrapper {
-    endpoint: string;
+    defaultUri: string;
     lifeEngine: LifeEngine;
+    methods: Methods;
 
-    constructor(lifeEngine: LifeEngine, endpoint: string) {
+    constructor(lifeEngine: LifeEngine, defaultUri: string, methods: Methods = {}) {
         this.lifeEngine = lifeEngine;
-        this.endpoint = `${lifeEngine.getApiUrl()}/${endpoint}`;
+        this.defaultUri = defaultUri;
+        this.methods = methods;
     }
 
-    _call(method: string, data: any): Promise<{}> {
+    _getApiUrl(method: string, args: any) {
+        let path = this.defaultUri;
+
+        if (this.methods[method]) {
+            path = this.methods[method];
+        }
+
+        path = replaceTokens(path, args);
+
+        let uri = `${this.lifeEngine.getApiUrl()}/${path}`;
+
+        if (uri.indexOf("{") !== -1) {
+            throw new Error(`You are probably missing an argument, the API URL ended up as ${uri} when trying to make a ${method} request`);
+        }
+
+        return uri;
+    }
+
+    _call(method: string, data: any = {}): Promise<{}> {
         let _wrapper = this;
         return new Promise(function (resolve: { (data: any): void }, reject: { (data: any): void }) {
             let request = new XMLHttpRequest();
-            let uri = _wrapper.endpoint;
+            let args = JSON.parse(JSON.stringify(data));
+
+            let uri = _wrapper._getApiUrl(method, args);
+
             if (method === "GET") {
-                uri += '?' + convertParams(data);
+                let params = convertParams(args);
+                if (params !== "") {
+                    uri += '?' + params;
+                }
             }
 
             log(`Making a ${method} request to ${uri}`);
@@ -70,12 +108,23 @@ class ApiWrapper {
             }
             request.onload = function () {
                 let status = request.status;
-                let data = JSON.parse(request.responseText);
-                resolve({data: data, status: status});
+                let data = undefined;
+                if (request.responseText !== '') {
+                    data = JSON.parse(request.responseText);
+                }
+
+                if (status >= 400) {
+                    reject({data: data, status: status});
+                } else {
+                    resolve({data: data, status: status});
+                }
             };
             request.onerror = function () {
-                let data = JSON.parse(request.responseText);
-                reject(data);
+                let data = undefined;
+                if (request.responseText !== '') {
+                    JSON.parse(request.responseText);
+                }
+                reject({data: data, status: request.status});
             };
         });
     }
@@ -102,21 +151,25 @@ class LifeEngine {
     _config: Config;
     _authChangeListeners: AuthListener[] = [];
     _authenticated: boolean = false;
-    _oauthProvider: OAuth.Provider;
 
     // acceptTerms: ApiWrapper;
     // auth: ApiWrapper;
+
+    // Create or delete calendar entries
     calendar: ApiWrapper;
+
     //connectionRequest: ApiWrapper;
     //connectionRequestAction: ApiWrapper;
     data: ApiWrapper;
     entity: ApiWrapper;
+    entities: ApiWrapper;
     //favorites: ApiWrapper;
     files: ApiWrapper;
-    images: ApiWrapper;
+    //images: ApiWrapper;
     keyvalue: ApiWrapper;
     mail: ApiWrapper;
     messageComments: ApiWrapper;
+    messageRead: ApiWrapper;
     messages: ApiWrapper;
     notes: ApiWrapper;
     notifications: ApiWrapper;
@@ -132,36 +185,34 @@ class LifeEngine {
     staff: ApiWrapper;
     taskAction: ApiWrapper;
     taskComments: ApiWrapper;
+    taskInbox: ApiWrapper;
+    taskList: ApiWrapper;
     taskTemplates: ApiWrapper;
     taxReport: ApiWrapper;
     userAdd: ApiWrapper;
 
     constructor(config: Config) {
         this.setConfig(config);
-        this.calendar = new ApiWrapper(this, "tasks");
-        this.data = new ApiWrapper(this, "data");
-        this.entity = new ApiWrapper(this, "entities");
-        this.messages = new ApiWrapper(this, "messages");
-        this._oauthProvider = new OAuth.Provider({
-            id: "digitalliving",
-            authorization_url: `${this.getApiUrl()}/auth/authorize`,
-            storage: undefined,
+        this.calendar = new ApiWrapper(this, "tasks/{DLId}", {
+            "POST": "tasks",
         });
-    }
-
-    checkOAuthReturn() {
-        try {
-            let response = this._oauthProvider.parse(window.location.href);
-            this._authToken = this._oauthProvider.getAccessToken();
-            this._emitAuthChange();
-        } catch (e) {
-            if (e.message.indexOf("access_token is not present") !== -1) {
-                // Not a return url
-                return;
-            }
-
-            log("Failed to parse OAuth response", e);
-        }
+        this.taskInbox = new ApiWrapper(this, "inbox/tasks");
+        this.taskList = new ApiWrapper(this, "tasks");
+        this.taskComments = new ApiWrapper(this, "tasks/{DLId}/comment", {
+            "DELETE": "tasks/{DLId}/comment/{commentId}"
+        });
+        this.data = new ApiWrapper(this, "data");
+        this.entity = new ApiWrapper(this, "entities/{DLId}");
+        this.entities = new ApiWrapper(this, "entities", {
+            "DELETE": "entities/{DLId}"
+        });
+        this.messages = new ApiWrapper(this, "messages", {
+            "PUT": "messages/{DLId}"
+        });
+        this.messageComments = new ApiWrapper(this, "messages/{DLId}/comment", {
+            "DELETE": "messages/{DLId}/comment/{commentId}"
+        });
+        this.messageRead = new ApiWrapper(this, "messages/{DLId}/read");
     }
 
     setConfig(config: Config) {
@@ -183,21 +234,12 @@ class LifeEngine {
     }
 
     authenticate() {
-        let request = new OAuth.Request({
-            response_type: "token",
-            metadata: {},
-            scope: "",
-            client_id: this._config.clientId,
-            redirect_uri: String(window.location),
-            state: String(Math.random())
-        });
-
-        let uri = this._oauthProvider.requestToken(request);
-        this._oauthProvider.remember(request);
-        window.location.href = uri;
+        throw new Error("Not implemented");
     }
 
     clearAuth() {
+        this._authToken = undefined;
+        this._authenticated = false;
         this._emitAuthChange();
     }
 
@@ -210,7 +252,10 @@ class LifeEngine {
     }
 
     setAuthToken(token: string) {
-        this._authToken = token
+        this._authToken = token;
+        this._authenticated = !!token;
+
+        this._emitAuthChange();
     }
 
     addAuthChangeListener(listener: AuthListener) {

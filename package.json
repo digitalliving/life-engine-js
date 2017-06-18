@@ -18,8 +18,5 @@
     "typescript": "^2.3.2",
     "webpack": "^1.15.0",
     "yargs": "^8.0.1"
-  },
-  "dependencies": {
-    "@zalando/oauth2-client-js": "0.0.17"
   }
 }
