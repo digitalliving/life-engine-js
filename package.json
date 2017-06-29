@@ -4,9 +4,9 @@
     "type" : "git",
     "url" : "https://github.com/digitalliving/life-engine-js.git"
   },
-  "version": "v0.8.0",
+  "version": "v0.8.1",
   "description": "A JavaScript wrapper around Life Engine's APIs",
-  "main": "dist/lifeengine.min.js",
+  "main": "dist/LifeEngine.js",
   "license": "MIT",
   "scripts": {
     "build": "gulp release",
