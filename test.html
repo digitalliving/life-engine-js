@@ -137,7 +137,7 @@
                 var task = res.data.data;
 
                 le.data.post({
-                    "DLId": task.DLId,
+                    "entityDLId": task.DLId,
                     "context": "I.r.smart",
                     "key": "foo",
                     "value": "barf",
@@ -165,26 +165,56 @@
         console.log("AUTH CHANGED", arguments);
     });
 
-    if (config.token) {
-        le.setAuthToken(config.token);
+    function getToken() {
+        if (config.token) {
+            return config.token;
+        }
+
+        if (window.location.hash) {
+            return window.location.hash.substr(1);
+        }
+    }
+
+    var token = getToken();
+    if (token) {
+        console.log("Setting auth token " + token);
+        le.setAuthToken(token);
+    }
+
+    function authFailed() {
+        console.log("LE DOES NOT HAVE AUTH TOKEN, SET UP AUTHENTICATION");
+        console.log("https://github.com/digitalliving/life-engine-oauth-example");
+        var a = document.createElement("a");
+        a.textContent = a.href = config.authUrl;
+        document.body.appendChild(a);
     }
 
     if (!le.getAuthToken()) {
-        console.log("LE DOES NOT HAVE AUTH TOKEN, ASKING TO AUTH");
-        le.authenticate();
+        authFailed();
     } else {
-        le.entities.get({include: "keyValueData"}).then(function (result) {
-            console.log("GOT ENTITIES", result);
-            entities = result.data.data;
+        le.me.get().then(function (result) {
+            console.log("ME", result);
 
-            entities.forEach(function (e) {
-                le.entity.get({"DLId": e.DLId}).then(function (res) {
-                    console.log("ENTITY GET " + e.DLId, res);
+            le.entities.get({include: "keyValueData"}).then(function (result) {
+                console.log("GOT ENTITIES", result);
+                entities = result.data.data;
+
+                entities.forEach(function (e) {
+                    le.entity.get({"DLId": e.DLId}).then(function (res) {
+                        console.log("ENTITY GET " + e.DLId, res);
+                    });
                 });
-            });
 
-            testMessages();
-            testCalendar();
+                testMessages();
+                testCalendar();
+            });
+        }).catch(function (e) {
+            if (e.status === 401) {
+                console.log("/me request failed, authorization failed");
+                authFailed();
+            } else {
+                console.log(e);
+            }
         });
     }
 </script>

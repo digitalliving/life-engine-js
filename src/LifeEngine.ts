@@ -168,6 +168,7 @@ class LifeEngine {
     //images: ApiWrapper;
     keyvalue: ApiWrapper;
     mail: ApiWrapper;
+    me: ApiWrapper;
     messageComments: ApiWrapper;
     messageRead: ApiWrapper;
     messages: ApiWrapper;
@@ -193,6 +194,7 @@ class LifeEngine {
 
     constructor(config: Config) {
         this.setConfig(config);
+        this.me = new ApiWrapper(this, "me");
         this.calendar = new ApiWrapper(this, "tasks/{DLId}", {
             "POST": "tasks",
         });

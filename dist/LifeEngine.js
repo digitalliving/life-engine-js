@@ -189,6 +189,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this._authChangeListeners = [];
 	        this._authenticated = false;
 	        this.setConfig(config);
+	        this.me = new ApiWrapper(this, "me");
 	        this.calendar = new ApiWrapper(this, "tasks/{DLId}", {
 	            "POST": "tasks",
 	        });
