@@ -39,6 +39,10 @@ interface AuthListener {
     (authenticated: boolean): void;
 }
 
+interface ProgressListener {
+    (e: ProgressEvent): void;
+}
+
 interface Methods {
     [key: string]: string;
 }
@@ -77,7 +81,11 @@ class ApiWrapper {
         return uri;
     }
 
-    _call(method: string, data: any = {}): Promise<{}> {
+    _call(method: string, data: any = {}, formData: FormData = undefined, listener: ProgressListener = undefined): Promise<{}> {
+        if (method === "GET" && formData) {
+            throw new Error("Can't use FormData on GET requests");
+        }
+
         let _wrapper = this;
         return new Promise(function (resolve: { (data: any): void }, reject: { (data: any): void }) {
             let request = new XMLHttpRequest();
@@ -92,6 +100,18 @@ class ApiWrapper {
                 }
             }
 
+            if (formData) {
+                for(let key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        formData.append(key, data[key]);
+                    }
+                }
+            }
+
+            if (listener) {
+                request.upload.onprogress = listener;
+            }
+
             log(`Making a ${method} request to ${uri}`);
 
             request.open(method, uri, true);
@@ -100,12 +120,16 @@ class ApiWrapper {
             if (token) {
                 request.setRequestHeader('Authorization', `Bearer ${token}`);
             }
-            request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
             if (method === "GET") {
+                request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
                 request.send();
+            } else if (formData) {
+                request.send(formData);
             } else {
+                request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
                 request.send(convertParams(data));
             }
+
             request.onload = function () {
                 let status = request.status;
                 let data = undefined;
@@ -119,6 +143,7 @@ class ApiWrapper {
                     resolve({data: data, status: status});
                 }
             };
+
             request.onerror = function () {
                 let data = undefined;
                 if (request.responseText !== '') {
@@ -165,6 +190,7 @@ class LifeEngine {
     entities: ApiWrapper;
     //favorites: ApiWrapper;
     files: ApiWrapper;
+    folders: ApiWrapper;
     //images: ApiWrapper;
     keyvalue: ApiWrapper;
     mail: ApiWrapper;
@@ -191,12 +217,17 @@ class LifeEngine {
     taskTemplates: ApiWrapper;
     taxReport: ApiWrapper;
     userAdd: ApiWrapper;
+    _upload: ApiWrapper;
 
     constructor(config: Config) {
         this.setConfig(config);
         this.me = new ApiWrapper(this, "me");
         this.calendar = new ApiWrapper(this, "tasks/{DLId}", {
             "POST": "tasks",
+        });
+        this.files = new ApiWrapper(this, "files/{DLId}");
+        this.folders = new ApiWrapper(this, "files/folder/{DLId}", {
+            "POST": "entities/{DLId}/folder",
         });
         this.taskInbox = new ApiWrapper(this, "inbox/tasks");
         this.taskList = new ApiWrapper(this, "tasks");
@@ -209,12 +240,23 @@ class LifeEngine {
             "DELETE": "entities/{DLId}"
         });
         this.messages = new ApiWrapper(this, "messages", {
-            "PUT": "messages/{DLId}"
+            "PUT": "messages/{DLId}",
+            "DELETE": "messages/{DLId}"
         });
         this.messageComments = new ApiWrapper(this, "messages/{DLId}/comment", {
             "DELETE": "messages/{DLId}/comment/{commentId}"
         });
         this.messageRead = new ApiWrapper(this, "messages/{DLId}/read");
+        this._upload = new ApiWrapper(this, "entities/{DLId}/upload");
+    }
+
+    upload(file: File, data: any, onprogress: ProgressListener) {
+        let form = <HTMLFormElement>document.createElement("FORM");
+        form.setAttribute("enctype", "multipart/form-data");
+        let fd = new FormData(form);
+        fd.append("upload", file);
+
+        return this._upload._call("POST", data, fd, onprogress);
     }
 
     setConfig(config: Config) {
@@ -236,7 +278,7 @@ class LifeEngine {
     }
 
     authenticate() {
-        throw new Error("Not implemented");
+        throw new Error("Not implemented. Please refer to https://github.com/digitalliving/life-engine-oauth-example/blob/master/index.html");
     }
 
     clearAuth() {

@@ -1,14 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <!--
+    You can supply the auth token on the URL hash #<token>
+    Alternatively use config.token in test.config.js
+
+    Set up authentication e.g. like in:
+    https://github.com/digitalliving/life-engine-oauth-example
+    -->
     <script src="dist/LifeEngine.js"></script>
     <script src="test.config.js"></script>
 </head>
 <body>
-<h1>Testing LifeEngine </h1>
+<h1>Testing LifeEngine</h1>
+
+<h2>Upload a file</h2>
+<input type="file" id="fileUpload" accept="image/*">
+<progress id="progress"></progress>
 <script>
     var le = new LifeEngine(config);
     var entities = {};
+    var fileUpload = document.getElementById("fileUpload");
 
     //
     // A Bunch of functions for testing things
@@ -37,11 +49,15 @@
     }
 
     function toAPIDate(ts) {
+        // The API should support Unix timestamps too so new Date().getTime() / 1000 should work too
         return new Date(ts).toISOString().substr(0, 19).replace("T", " ");
     }
 
+    // Message handling
     function testMessages() {
-        console.log("Fetching messages");
+        console.log("TESTING MESSAGES");
+
+        // Get your messages
         le.messages.get({}).then(function (data) {
             console.log("GOT MESSAGES", data);
             var app = findEntity({"class": "App"});
@@ -53,9 +69,12 @@
                 "privacy": "public"
             };
 
+            // Create a message
             le.messages.post(msg).then(function (res) {
                 console.log("CREATED MESSAGE", res);
                 var message = res.data.data;
+
+                // Mark message as read
                 le.messageRead.post({
                     "DLId": message.DLId,
                     "readBy": person.DLId
@@ -63,6 +82,7 @@
                     console.log("MARKED MESSAGE AS READ", res);
                 });
 
+                // Add a comment
                 le.messageComments.post({
                     "DLId": message.DLId,
                     "fromDLId": person.DLId,
@@ -75,18 +95,25 @@
                     msg.DLId = message.DLId;
                     msg.subject += Date.now();
 
+                    // Update message
                     le.messages.put(msg).then(function (res) {
                         console.log("UPDATED MESSAGE", res);
+
+                        // Get message list with entities
                         le.messages.get({
                             "include": "toEntity,fromEntity"
                         }).then(function (res) {
                             console.log("RE-FETCHED MESSAGE LIST", res);
+
+                            // Delete comment
                             le.messageComments.delete({
                                 "DLId": message.DLId,
                                 "commentId": comment.id
                             }).then(function (res) {
                                 console.log("DELETED COMMENT", res);
                                 var message = res.data.data;
+
+                                // Delete message
                                 le.messages.delete({
                                     "DLId": message.DLId
                                 }).then(function (res) {
@@ -100,21 +127,31 @@
         });
     }
 
+    // Testing tasks
     function testCalendar() {
+
+        // List task inbox
         le.taskInbox.get().then(function (res) {
             console.log("CALENDAR TASK INBOX", res);
         });
 
+        // List tasks
         le.taskList.get().then(function (res) {
             console.log("CALENDAR TASK LIST", res);
             var list = res.data.data;
             list.forEach(function (task) {
+
+                // Get full entry data
                 le.calendar.get({"DLId": task.DLId}).then(function (res) {
                     console.log("CALENDAR TASK GET", res);
                     task.title = "DELETING";
                     delete task["relations"];
+
+                    // Update task
                     le.calendar.put(task).then(function (res) {
                         console.log("CALENDAR TASK UPDATED", res);
+
+                        // Delete task
                         le.calendar.delete({"DLId": task.DLId}).then(function (res) {
                             console.log("DELETED TASK " + task.DLId, res);
                         });
@@ -123,6 +160,8 @@
             });
         }).then(function () {
             var person = findEntity({"class": "Person"});
+
+            // Create a new entry
             le.calendar.post({
                 "toDLId": person.DLId,
                 "type": "event",
@@ -136,6 +175,7 @@
                 console.log("CREATED CALENDAR TASK", res);
                 var task = res.data.data;
 
+                // Add key-value data to task
                 le.data.post({
                     "entityDLId": task.DLId,
                     "context": "I.r.smart",
@@ -146,6 +186,7 @@
                     console.log("SAVED KEY-VALUE DATA", res);
                 });
 
+                // Add a comment to task
                 le.taskComments.post({
                     "DLId": task.DLId,
                     "fromDLId": person.DLId,
@@ -156,10 +197,6 @@
             });
         });
     }
-
-    //
-    // The logic for firing up the tests
-    //
 
     le.addAuthChangeListener(function () {
         console.log("AUTH CHANGED", arguments);
@@ -175,6 +212,91 @@
         }
     }
 
+
+    /*
+     * File and folder management
+     */
+    fileUpload.addEventListener("change", function (e) {
+        var file = this.files[0];
+        var person = findEntity({"class": "Person"});
+        var folder;
+
+        // Upload the file
+        var uploadFile = function () {
+            // Get progress updates on upload progress
+            var onprogress = function (e) {
+                var progress = document.getElementById("progress");
+                progress.max = e.total;
+                progress.value = e.loaded;
+            };
+
+            // Upload the file to the folder
+            return le.upload(file, {
+                "DLId": person.DLId,
+                "context": "https://schema.org/image",
+                "folderDLId": folder.DLId
+            }, onprogress).then(function (res) {
+                var fileData = res.data.data;
+                console.log("UPLOADED FILE", fileData);
+                var img = document.createElement("IMG");
+                img.src = fileData.file.data.url;
+                document.body.appendChild(img);
+
+                // List folder contents
+                le.folders.get({
+                    "DLId": folder.DLId
+                }).then(function(res) {
+                    var contents = res.data.data;
+                    console.log("FOLDER CONTENTS", contents);
+                });
+
+                console.log("DELETING FILE IN 10 SECONDS");
+                setTimeout(function() {
+                    console.log("DELETING FILE");
+
+                    // Delete file
+                    le.files.delete({"DLId": fileData.DLId}).then(function(res) {
+                        console.log("DELETED FILE", res);
+                    });
+                }, 10000);
+            });
+        };
+
+        // Create a folder
+        le.folders.post({
+            "DLId": person.DLId,
+            "name": "Parent " + Date.now().toString(16),
+            "context": "https://schema.org/folder"
+        }).then(function (res) {
+            var parent = res.data.data;
+
+            // Create another folder
+            le.folders.post({
+                "DLId": person.DLId,
+                "name": "Folder " + Date.now().toString(16),
+                "context": "https://schema.org/folder"
+            }).then(function (res) {
+                folder = res.data.data;
+                console.log("CREATED FOLDER", folder);
+
+                // Update folder (making it a child of the first folder)
+                le.folders.put({
+                    "DLId": folder.DLId,
+                    "name": folder.name + " (2)",
+                    "context": folder.context,
+                    "parentDLId": parent.DLId
+                }).then(function(res) {
+                    console.log("UPDATED FOLDER", res.data.data);
+                    uploadFile();
+                })
+            });
+        });
+    });
+
+    //
+    // The logic for firing up the tests
+    //
+
     var token = getToken();
     if (token) {
         console.log("Setting auth token " + token);
@@ -184,22 +306,23 @@
     function authFailed() {
         console.log("LE DOES NOT HAVE AUTH TOKEN, SET UP AUTHENTICATION");
         console.log("https://github.com/digitalliving/life-engine-oauth-example");
-        var a = document.createElement("a");
-        a.textContent = a.href = config.authUrl;
-        document.body.appendChild(a);
     }
 
     if (!le.getAuthToken()) {
         authFailed();
     } else {
+        // Get logged in entity's information
         le.me.get().then(function (result) {
             console.log("ME", result);
 
+            // Get all entities you have access to
             le.entities.get({include: "keyValueData"}).then(function (result) {
                 console.log("GOT ENTITIES", result);
                 entities = result.data.data;
 
                 entities.forEach(function (e) {
+
+                    // Get single entity
                     le.entity.get({"DLId": e.DLId}).then(function (res) {
                         console.log("ENTITY GET " + e.DLId, res);
                     });

@@ -122,8 +122,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	        return uri;
 	    };
-	    ApiWrapper.prototype._call = function (method, data) {
+	    ApiWrapper.prototype._call = function (method, data, formData, listener) {
 	        if (data === void 0) { data = {}; }
+	        if (formData === void 0) { formData = undefined; }
+	        if (listener === void 0) { listener = undefined; }
+	        if (method === "GET" && formData) {
+	            throw new Error("Can't use FormData on GET requests");
+	        }
 	        var _wrapper = this;
 	        return new Promise(function (resolve, reject) {
 	            var request = new XMLHttpRequest();
@@ -135,17 +140,31 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    uri += '?' + params;
 	                }
 	            }
+	            if (formData) {
+	                for (var key in data) {
+	                    if (data.hasOwnProperty(key)) {
+	                        formData.append(key, data[key]);
+	                    }
+	                }
+	            }
+	            if (listener) {
+	                request.upload.onprogress = listener;
+	            }
 	            log("Making a " + method + " request to " + uri);
 	            request.open(method, uri, true);
 	            var token = _wrapper.lifeEngine.getAuthToken();
 	            if (token) {
 	                request.setRequestHeader('Authorization', "Bearer " + token);
 	            }
-	            request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
 	            if (method === "GET") {
+	                request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
 	                request.send();
 	            }
+	            else if (formData) {
+	                request.send(formData);
+	            }
 	            else {
+	                request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
 	                request.send(convertParams(data));
 	            }
 	            request.onload = function () {
@@ -193,6 +212,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this.calendar = new ApiWrapper(this, "tasks/{DLId}", {
 	            "POST": "tasks",
 	        });
+	        this.files = new ApiWrapper(this, "files/{DLId}");
+	        this.folders = new ApiWrapper(this, "files/folder/{DLId}", {
+	            "POST": "entities/{DLId}/folder",
+	        });
 	        this.taskInbox = new ApiWrapper(this, "inbox/tasks");
 	        this.taskList = new ApiWrapper(this, "tasks");
 	        this.taskComments = new ApiWrapper(this, "tasks/{DLId}/comment", {
@@ -204,13 +227,22 @@ return /******/ (function(modules) { // webpackBootstrap
 	            "DELETE": "entities/{DLId}"
 	        });
 	        this.messages = new ApiWrapper(this, "messages", {
-	            "PUT": "messages/{DLId}"
+	            "PUT": "messages/{DLId}",
+	            "DELETE": "messages/{DLId}"
 	        });
 	        this.messageComments = new ApiWrapper(this, "messages/{DLId}/comment", {
 	            "DELETE": "messages/{DLId}/comment/{commentId}"
 	        });
 	        this.messageRead = new ApiWrapper(this, "messages/{DLId}/read");
+	        this._upload = new ApiWrapper(this, "entities/{DLId}/upload");
 	    }
+	    LifeEngine.prototype.upload = function (file, data, onprogress) {
+	        var form = document.createElement("FORM");
+	        form.setAttribute("enctype", "multipart/form-data");
+	        var fd = new FormData(form);
+	        fd.append("upload", file);
+	        return this._upload._call("POST", data, fd, onprogress);
+	    };
 	    LifeEngine.prototype.setConfig = function (config) {
 	        if (typeof config.apiUrl !== "string" || (config.apiUrl.indexOf("http://") === -1 && config.apiUrl.indexOf("https://") === -1)) {
 	            throw new Error("Cannot set LifeEngine configuration. Invalid apiUrl in config: " + config.apiUrl);
@@ -227,7 +259,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        return this._config.clientId;
 	    };
 	    LifeEngine.prototype.authenticate = function () {
-	        throw new Error("Not implemented");
+	        throw new Error("Not implemented. Please refer to https://github.com/digitalliving/life-engine-oauth-example/blob/master/index.html");
 	    };
 	    LifeEngine.prototype.clearAuth = function () {
 	        this._authToken = undefined;
