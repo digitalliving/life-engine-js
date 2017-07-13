@@ -234,6 +234,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	            "DELETE": "messages/{DLId}/comment/{commentId}"
 	        });
 	        this.messageRead = new ApiWrapper(this, "messages/{DLId}/read");
+	        this.relations = new ApiWrapper(this, "relations", {
+	            "DELETE": "relations/{DLId}",
+	            "PUT": "relations/{DLId}",
+	        });
+	        this.relation = new ApiWrapper(this, "relations/{DLId}");
 	        this._upload = new ApiWrapper(this, "entities/{DLId}/upload");
 	    }
 	    LifeEngine.prototype.upload = function (file, data, onprogress) {

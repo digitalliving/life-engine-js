@@ -203,6 +203,7 @@ class LifeEngine {
     password: ApiWrapper;
     personal: ApiWrapper;
     pushNotifications: ApiWrapper;
+    relation: ApiWrapper;
     relations: ApiWrapper;
     roles: ApiWrapper;
     search: ApiWrapper;
@@ -247,6 +248,11 @@ class LifeEngine {
             "DELETE": "messages/{DLId}/comment/{commentId}"
         });
         this.messageRead = new ApiWrapper(this, "messages/{DLId}/read");
+        this.relations = new ApiWrapper(this, "relations", {
+            "DELETE": "relations/{DLId}",
+            "PUT": "relations/{DLId}",
+        });
+        this.relation = new ApiWrapper(this, "relations/{DLId}");
         this._upload = new ApiWrapper(this, "entities/{DLId}/upload");
     }
 
