@@ -24,6 +24,8 @@ gulp.task('webpack', function (callback) {
 });
 
 let defaultTasks = ['webpack'];
+gulp.task('release', defaultTasks);
+
 gulp.task('default', defaultTasks, function () {
     gulp.watch(["src/**/*.ts"], defaultTasks);
 });
