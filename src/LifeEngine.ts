@@ -188,6 +188,7 @@ class LifeEngine {
     data: ApiWrapper;
     entity: ApiWrapper;
     entities: ApiWrapper;
+    entityKeyValues: ApiWrapper;
     //favorites: ApiWrapper;
     files: ApiWrapper;
     folders: ApiWrapper;
@@ -240,6 +241,7 @@ class LifeEngine {
         this.entities = new ApiWrapper(this, "entities", {
             "DELETE": "entities/{DLId}"
         });
+        this.entityKeyValues = new ApiWrapper(this, "entities/{DLId}/keyValues");
         this.messages = new ApiWrapper(this, "messages", {
             "PUT": "messages/{DLId}",
             "DELETE": "messages/{DLId}"
