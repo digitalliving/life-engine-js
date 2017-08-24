@@ -23,3 +23,4 @@ and open up `test.html` in a browser.
 
 1. Update new version number in package.json
 2. Commit a new tag pointing to the correct revision
+3. `npm publish`
