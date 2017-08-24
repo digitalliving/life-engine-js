@@ -126,8 +126,8 @@ class ApiWrapper {
             } else if (formData) {
                 request.send(formData);
             } else {
-                request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-                request.send(convertParams(data));
+                request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+                request.send(JSON.stringify(data));
             }
 
             request.onload = function () {
