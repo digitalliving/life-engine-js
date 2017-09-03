@@ -235,6 +235,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            "DELETE": "messages/{DLId}/comment/{commentId}"
 	        });
 	        this.messageRead = new ApiWrapper(this, "messages/{DLId}/read");
+	        this.messageInbox = new ApiWrapper(this, "inbox/messages");
 	        this.relations = new ApiWrapper(this, "relations", {
 	            "DELETE": "relations/{DLId}",
 	            "PUT": "relations/{DLId}",
