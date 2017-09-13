@@ -213,7 +213,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            "POST": "tasks",
 	        });
 	        this.files = new ApiWrapper(this, "files/{DLId}");
-	        this.folders = new ApiWrapper(this, "files/folder/{DLId}", {
+	        this.folders = new ApiWrapper(this, "folders/{DLId}", {
 	            "POST": "entities/{DLId}/folder",
 	        });
 	        this.taskInbox = new ApiWrapper(this, "inbox/tasks");
@@ -223,6 +223,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        });
 	        this.data = new ApiWrapper(this, "data");
 	        this.entity = new ApiWrapper(this, "entities/{DLId}");
+	        this.entityFolders = new ApiWrapper(this, "entities/{DLId}/folders");
 	        this.entities = new ApiWrapper(this, "entities", {
 	            "DELETE": "entities/{DLId}"
 	        });
